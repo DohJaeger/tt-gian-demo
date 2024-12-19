@@ -172,7 +172,7 @@
    *uo_out[2] = 1'b0;
    *uo_out[3] = 1'b0;
    *uo_out[4] = $rts;
-   *uo_out[5] = $1'b0;
+   *uo_out[5] = 1'b0;
    *uo_out[6] = $tx_serial;
    *uo_out[7] = 1'b0;
    
