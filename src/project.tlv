@@ -56,7 +56,7 @@ module uart_tx
         s_CLEANUP       = 3'b100
     } state_t;
 
-    localparam int CLKS_PER_BIT = FREQUENCY / (16 * BAUD_RATE);
+    localparam int CLKS_PER_BIT = FREQUENCY /  BAUD_RATE;
 
     state_t r_SM_Main = s_IDLE;
     logic [7:0] r_Clock_Count = 0;
