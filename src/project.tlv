@@ -154,6 +154,8 @@ endmodule
                                          .tx_done($$tx_done));
                                    
    *uo_out[2] = $tx_serial;
+   *uo_out[4] = $tx_active;
+   *uo_out[5] = $tx_done;
    
 
    // ============================================
