@@ -146,7 +146,7 @@ endmodule
 \TLV my_design()
    
    $tx_dv = 1'b1;
-   $tx_byte[7:0] = 8'd255;
+   $tx_byte[7:0] = 8'd85;
    
    \SV_plus
       uart_tx #(20000000,115200) uart_tx( .clk(*clk), 
