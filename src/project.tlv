@@ -156,7 +156,7 @@
    $cts = *ui_in[6];
    
    \SV_plus
-      uart_tx_hs #(1000000,115200) uart_tx_hs( .clk(*clk), 
+      uart_tx_hs #(20000000,115200) uart_tx_hs( .clk(*clk), 
                                          .reset(*reset), 
                                          .tx_dv($tx_dv), 
                                          .tx_byte($tx_byte), 
