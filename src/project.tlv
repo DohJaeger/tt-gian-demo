@@ -146,17 +146,18 @@ endmodule
 \TLV my_design()
    
    $tx_dv = 1'b1;
-   $tx_byte[7:0] = 8'd7;
+   $tx_byte[7:0] = 8'd3;
    
    \SV_plus
-      uart_tx #(40000000,9600) uart_tx( .clk(*clk), 
+      uart_tx #(200000,9600) uart_tx( .clk(*clk), 
                                          .reset(*reset), 
                                          .tx_dv($tx_dv), 
                                          .tx_byte($tx_byte), 
                                          .tx_active($$tx_active), 
                                          .tx_serial($$tx_serial), 
                                          .tx_done($$tx_done));
-                                         
+            
+   $cnt[4:0] = !$tx_done ? $tx_serial + >>1$tx_serial : 8'd0;
    *uo_out[0] = 1'b0;
    *uo_out[1] = 1'b0;
    *uo_out[2] = $tx_serial;
@@ -220,7 +221,7 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
    
-   assign passed = top.cyc_cnt > 80;
+   assign passed = top.cyc_cnt > 10000;
    assign failed = 1'b0;
 endmodule
 
