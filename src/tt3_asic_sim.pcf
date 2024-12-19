@@ -1,5 +1,5 @@
 # 20 MHz clock
-set_io -nowarn clk        20
+set_io -nowarn clk        0.2
 
 
 # USB
