@@ -149,7 +149,7 @@ endmodule
    $tx_byte[7:0] = 8'd3;
    
    \SV_plus
-      uart_tx #(100000,9600) uart_tx( .clk(*clk), 
+      uart_tx #(1000000,9600) uart_tx( .clk(*clk), 
                                          .reset(*reset), 
                                          .tx_dv($tx_dv), 
                                          .tx_byte($tx_byte), 
