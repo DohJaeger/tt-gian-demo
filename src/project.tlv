@@ -149,7 +149,7 @@ endmodule
    $tx_byte[7:0] = 8'd7;
    
    \SV_plus
-      uart_tx #(20000000,9600) uart_tx( .clk(*clk), 
+      uart_tx #(40000000,9600) uart_tx( .clk(*clk), 
                                          .reset(*reset), 
                                          .tx_dv($tx_dv), 
                                          .tx_byte($tx_byte), 
@@ -158,8 +158,8 @@ endmodule
                                          .tx_done($$tx_done));
                                          
    *uo_out[0] = 1'b0;
-   *uo_out[1] = $tx_serial;
-   *uo_out[2] = 1'b0;
+   *uo_out[1] = 1'b0;
+   *uo_out[2] = $tx_serial;
    *uo_out[3] = 1'b0;
    *uo_out[4] = $tx_active;
    *uo_out[5] = $tx_done;
