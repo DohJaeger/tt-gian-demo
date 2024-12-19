@@ -1,133 +1,173 @@
 \m5_TLV_version 1d: tl-x.org
 \m5
-   use(m5-1.0)
-   
+   /**
+   This template is for developing Tiny Tapeout designs using Makerchip.
+   Verilog, SystemVerilog, and/or TL-Verilog can be used.
+   Use of Tiny Tapeout Demo Boards (as virtualized in the VIZ tab) is supported.
+   See the corresponding Git repository for build instructions.
+   **/
 
-   // #################################################################
-   // #                                                               #
-   // #  Starting-Point Code for MEST Course Tiny Tapeout Calculator  #
-   // #                                                               #
-   // #################################################################
-   
-   // ========
-   // Settings
-   // ========
-   
-   //-------------------------------------------------------
-   // Build Target Configuration
-   //
-   var(my_design, tt_um_example)   /// The name of your top-level TT module, to match your info.yml.
-   var(target, ASIC)   /// Note, the FPGA CI flow will set this to FPGA.
-   //-------------------------------------------------------
-   
-   var(in_fpga, 1)   /// 1 to include the demo board. (Note: Logic will be under /fpga_pins/fpga.)
-   var(debounce_inputs, 1)
+   use(m5-1.0)  // See M5 docs in Makerchip IDE Learn menu.
+
+   // ---SETTINGS---
+   var(my_design, tt_um_example)  /// Change tt_um_example to tt_um_<your-github-username>_<name-of-your-project>. (See README.md.)
+   var(debounce_inputs, 0)
                      /// Legal values:
                      ///   1: Provide synchronization and debouncing on all input signals.
                      ///   0: Don't provide synchronization and debouncing.
                      ///   m5_if_defined_as(MAKERCHIP, 1, 0, 1): Debounce unless in Makerchip.
-   
-   // ======================
-   // Computed From Settings
-   // ======================
-   
-   // If debouncing, a user's module is within a wrapper, so it has a different name.
+   // --------------
+
+   // If debouncing, your top module is wrapped within a debouncing module, so it has a different name.
    var(user_module_name, m5_if(m5_debounce_inputs, my_design, m5_my_design))
    var(debounce_cnt, m5_if_defined_as(MAKERCHIP, 1, 8'h03, 8'hff))
-
 \SV
    // Include Tiny Tapeout Lab.
-   m4_include_lib(https:/['']/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/35e36bd144fddd75495d4cbc01c4fc50ac5bde6f/tlv_lib/tiny_tapeout_lib.tlv)
-   // Calculator VIZ.
-   m4_include_lib(https:/['']/raw.githubusercontent.com/efabless/chipcraft---mest-course/main/tlv_lib/calculator_shell_lib.tlv)
+   m4_include_lib(['https:/']['/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/5744600215af09224b7235479be84c30c6e50cb7/tlv_lib/tiny_tapeout_lib.tlv'])
 
-\TLV calc()
-   
-   
-   // ==================
-   // .. Sequential Calculator
-   |calc
-      @0
-         $reset = *reset;
-         $val2[7:0] = {4'b0000, *ui_in[3:0]};
-         $op[1:0] = *ui_in[5:4];
-         $equals_in = *ui_in[7];
-         
-         $valid = !>>1$equals_in & $equals_in;
-         
-         $val1[7:0] = >>1$out;
-         //$val2[7:0] = {4'b0, $rand2[3:0]};
-         
-         // test
-         //$val2[7:0] = 8'b1;
-         //$op[1:0] = 2'b0;
-         
-         $sum[7:0] = $val1[7:0] + $val2[7:0];
-         $diff[7:0] = $val1[7:0] - $val2[7:0];
-         $prod[7:0] = $val1[7:0] * $val2[7:0];
-         $quo[7:0] = $val1[7:0] / $val2[7:0];
+   ///m4_define(['m4_serv_repo'], ['['https://raw.githubusercontent.com/DohJaeger/tt_makerchip_lib/801a9b9f4e7a28094d1ea101b423dd041f4041a9/']'])
+   ///m4_define(['m4_serv_rtl'], ['m4_serv_repo['src/uart_rtl/']'])
+                                  
+   ///m4_sv_get_url(m4_serv_rtl['uart_rx.v'])
+   ///m4_sv_get_url(m4_serv_rtl['uart_tx.sv'])
 
-         $out[7:0] = $reset 
-                           ? 8'b0 :
-                     !$valid
-                           ? >>1$out :
-                          $op[1:0] == 2'b00
-                                   ? $sum :
-                          $op[1:0] == 2'b01
-                                  ? $diff :
-                          $op[1:0] == 2'b10
-                                  ? $prod :
-                                    $quo;
-         
-         $digit[3:0] = $out[3:0];
-         
-         *uo_out =   $digit == 4'd0
-                         ? 8'b0011_1111 :
-                     $digit == 4'd1
-                         ? 8'b00000110 :
-                     $digit == 4'd2
-                         ? 8'b01011011 :
-                     $digit == 4'd3
-                         ? 8'b01001111 :
-                     $digit == 4'd4
-                         ? 8'b01100110 :
-                     $digit == 4'd5
-                         ? 8'b01101101 :
-                     $digit == 4'd6
-                         ? 8'b01111101 :
-                     $digit == 4'd7
-                         ? 8'b00000111 :
-                     $digit == 4'd8
-                         ? 8'b01111111 :
-                     $digit == 4'd9
-                         ? 8'b01101111 :
-                     $digit == 4'd10
-                         ? 8'b01110111 :
-                     $digit == 4'd11
-                         ? 8'b01111100 :
-                     $digit == 4'd12
-                         ? 8'b00111001 :
-                     $digit == 4'd13
-                         ? 8'b01011110 :
-                     $digit == 4'd14
-                         ? 8'b01111001 :
-                     $digit == 4'd15
-                         ? 8'b01110001 :
-                         8'b00000000;
-   // ==================
+   module uart_tx 
+    #(parameter int FREQUENCY = 10000000, parameter int BAUD_RATE = 9600)
+    (
+        input logic clk,
+        input logic reset,
+        input logic tx_dv,
+        input logic [7:0] tx_byte, 
+        output logic tx_active,
+        output logic tx_serial,
+        output logic tx_done
+    );
+
+    typedef enum logic [2:0] {
+        s_IDLE          = 3'b000,
+        s_TX_START_BIT  = 3'b001,
+        s_TX_DATA_BITS  = 3'b010,
+        s_TX_STOP_BIT   = 3'b011,
+        s_CLEANUP       = 3'b100
+    } state_t;
+
+    localparam int CLKS_PER_BIT = FREQUENCY / (16 * BAUD_RATE);
+
+    state_t r_SM_Main = s_IDLE;
+    logic [7:0] r_Clock_Count = 0;
+    logic [2:0] r_Bit_Index = 0;
+    logic [7:0] r_Tx_Data = 0;
+    logic r_Tx_Done = 0;
+    logic r_Tx_Active = 0;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            r_SM_Main <= s_IDLE;
+            r_Clock_Count <= 0;
+            r_Bit_Index <= 0;
+            r_Tx_Data <= 0;
+            r_Tx_Done <= 0;
+            r_Tx_Active <= 0;
+            tx_serial <= 1;
+        end else begin
+            case (r_SM_Main)
+                s_IDLE: begin
+                    tx_serial <= 1; // Line idle state
+                    r_Tx_Done <= 0;
+                    r_Clock_Count <= 0;
+                    r_Bit_Index <= 0;
+                    
+                    if (tx_dv) begin
+                        r_Tx_Active <= 1;
+                        r_Tx_Data <= tx_byte;
+                        r_SM_Main <= s_TX_START_BIT;
+                    end else begin
+                        r_SM_Main <= s_IDLE;
+                    end
+                end
+
+                s_TX_START_BIT: begin
+                    tx_serial <= 0; // Start bit
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Clock_Count <= 0;
+                        r_SM_Main <= s_TX_DATA_BITS;
+                    end
+                end
+
+                s_TX_DATA_BITS: begin
+                    tx_serial <= r_Tx_Data[r_Bit_Index];
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Clock_Count <= 0;
+                        if (r_Bit_Index < 7) begin
+                            r_Bit_Index <= r_Bit_Index + 1;
+                        end else begin
+                            r_Bit_Index <= 0;
+                            r_SM_Main <= s_TX_STOP_BIT;
+                        end
+                    end
+                end
+
+                s_TX_STOP_BIT: begin
+                    tx_serial <= 1; // Stop bit
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Tx_Done <= 1;
+                        r_Clock_Count <= 0;
+                        r_Tx_Active <= 0;
+                        r_SM_Main <= s_CLEANUP;
+                    end
+                end
+
+                s_CLEANUP: begin
+                    r_Tx_Done <= 1;
+                    r_SM_Main <= s_IDLE;
+                end
+
+                default: r_SM_Main <= s_IDLE;
+            endcase
+        end
+    end
+
+    assign tx_active = r_Tx_Active;
+    assign tx_done = r_Tx_Done;
+
+endmodule
+
+
+\TLV my_design()
    
-   // Note that pipesignals assigned here can be found under /fpga_pins/fpga.
+   $tx_dv = 1'b1;
+   $tx_byte[7:0] = 8'd7;
    
+   \SV_plus
+      uart_tx #(10000000,9600) uart_tx( .clk(*clk), 
+                                         .reset(*reset), 
+                                         .tx_dv($tx_dv), 
+                                         .tx_byte($tx_byte), 
+                                         .tx_active($$tx_active), 
+                                         .tx_serial($$tx_serial), 
+                                         .tx_done($$tx_done));
+                                   
+   *uo_out[2] = $tx_serial;
    
 
-   m5+cal_viz(@1, m5_if(m5_in_fpga, /fpga, /top))
-   
-   // Connect Tiny Tapeout outputs. Note that uio_ outputs are not available in the Tiny-Tapeout-3-based FPGA boards.
-   //*uo_out = 8'hFF;
-   m5_if_neq(m5_target, FPGA, ['*uio_out = 8'b0;'])
-   m5_if_neq(m5_target, FPGA, ['*uio_oe = 8'b0;'])
+   // ============================================
+   // If you are using TL-Verilog for your design,
+   // your TL-Verilog logic goes here.
+   // Optionally, provide \viz_js here (for TL-Verilog or Verilog logic).
+   // Tiny Tapeout inputs can be referenced as, e.g. *ui_in.
+   // (Connect Tiny Tapeout outputs at the end of this template.)
+   // ============================================
+
+   // ...
 
 \SV
+
 
 // ================================================
 // A simple Makerchip Verilog test bench driving random stimulus.
@@ -136,58 +176,80 @@
 
 module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, output logic passed, output logic failed);
    // Tiny tapeout I/O signals.
-   logic [7:0] ui_in, uo_out;
-   m5_if_neq(m5_target, FPGA, ['logic [7:0] uio_in, uio_out, uio_oe;'])
+   logic [7:0] ui_in, uio_in, uo_out, uio_out, uio_oe;
    logic [31:0] r;
-   always @(posedge clk) r <= m5_if_defined_as(MAKERCHIP, 1, ['$urandom()'], ['0']);
+   always @(posedge clk) r = m5_if_defined_as(MAKERCHIP, 1, ['$urandom()'], ['0']);
    assign ui_in = r[7:0];
-   m5_if_neq(m5_target, FPGA, ['assign uio_in = 8'b0;'])
+   assign uio_in = r[15:8];
    logic ena = 1'b0;
    logic rst_n = ! reset;
-   
+
+   /*
+   // Or, to provide specific inputs at specific times...
+   // BE SURE TO COMMENT THE ASSIGNMENT OF INPUTS ABOVE.
+   // BE SURE TO DRIVE THESE ON THE B-PHASE OF THE CLOCK (ODD STEPS).
+   // Driving on the rising clock edge creates a race with the clock that has unpredictable simulation behavior.
+   initial begin
+      #1  // Drive inputs on the B-phase.
+         ui_in = 8'h0;
+      #10 // Step past reset.
+         ui_in = 8'hFF;
+      // ...etc.
+   end
+   */
+
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
-   
-   assign passed = top.cyc_cnt > 80;
+
+   assign passed = cyc_cnt > 300;
    assign failed = 1'b0;
 endmodule
 
-
 // Provide a wrapper module to debounce input signals if requested.
 m5_if(m5_debounce_inputs, ['m5_tt_top(m5_my_design)'])
+// The above macro expands to multiple lines. We enter a new \SV block to reset line tracking.
 \SV
 
 
-
-// =======================
-// The Tiny Tapeout module
-// =======================
-
+// The Tiny Tapeout module.
 module m5_user_module_name (
     input  wire [7:0] ui_in,    // Dedicated inputs - connected to the input switches
     output wire [7:0] uo_out,   // Dedicated outputs - connected to the 7 segment display
-    m5_if_eq(m5_target, FPGA, ['/']['*'])   // The FPGA is based on TinyTapeout 3 which has no bidirectional I/Os (vs. TT6 for the ASIC).
     input  wire [7:0] uio_in,   // IOs: Bidirectional Input path
     output wire [7:0] uio_out,  // IOs: Bidirectional Output path
     output wire [7:0] uio_oe,   // IOs: Bidirectional Enable path (active high: 0=input, 1=output)
-    m5_if_eq(m5_target, FPGA, ['*']['/'])
     input  wire       ena,      // will go high when the design is enabled
     input  wire       clk,      // clock
     input  wire       rst_n     // reset_n - low to reset
 );
-   wire reset = ! rst_n;
 
-\TLV tt_lab()
-   // Connect Tiny Tapeout I/Os to Virtual FPGA Lab.
-   m5+tt_connections()
-   // Instantiate the Virtual FPGA Lab.
-   m5+board(/top, /fpga, 7, $, , calc)
-   // Label the switch inputs [0..7] (1..8 on the physical switch panel) (top-to-bottom).
-   m5_if(m5_in_fpga, ['m5+tt_input_labels_viz(['"Value[0]", "Value[1]", "Value[2]", "Value[3]", "Op[0]", "Op[1]", "Op[2]", "="'])'])
+   wire reset = ! rst_n;
 
 \TLV
    /* verilator lint_off UNOPTFLAT */
-   m5_if(m5_in_fpga, ['m5+tt_lab()'], ['m5+calc()'])
+   // Connect Tiny Tapeout I/Os to Virtual FPGA Lab.
+   m5+tt_connections()
 
-\SV
+   // Instantiate the Virtual FPGA Lab.
+   m5+board(/top, /fpga, 7, $, , my_design)
+   // Label the switch inputs [0..7] (1..8 on the physical switch panel) (bottom-to-top).
+   m5+tt_input_labels_viz(['"UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED"'])
+
+\SV_plus
+
+   // =========================================
+   // If you are using (System)Verilog for your design,
+   // your Verilog logic goes here.
+   // =========================================
+
+   // ...
+
+
+   // Connect Tiny Tapeout outputs.
+   // Note that my_design will be under /fpga_pins/fpga.
+   // Example *uo_out = /fpga_pins/fpga|my_pipe>>3$uo_out;
+   //assign *uo_out = 8'b0;
+   //assign *uio_out = 8'b0;
+   //assign *uio_oe = 8'b0;
+
 endmodule
