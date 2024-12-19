@@ -149,7 +149,7 @@ endmodule
    $tx_byte[7:0] = 8'd3;
    
    \SV_plus
-      uart_tx #(200000,9600) uart_tx( .clk(*clk), 
+      uart_tx #(100000,9600) uart_tx( .clk(*clk), 
                                          .reset(*reset), 
                                          .tx_dv($tx_dv), 
                                          .tx_byte($tx_byte), 
@@ -221,7 +221,7 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
    
-   assign passed = top.cyc_cnt > 10000;
+   assign passed = top.cyc_cnt > 400000;
    assign failed = 1'b0;
 endmodule
 
