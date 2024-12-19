@@ -152,10 +152,15 @@ endmodule
                                          .tx_active($$tx_active), 
                                          .tx_serial($$tx_serial), 
                                          .tx_done($$tx_done));
-                                   
+                                         
+   *uo_out[0] = 1'b0;
+   *uo_out[1] = 1'b0;
    *uo_out[2] = $tx_serial;
+   *uo_out[3] = 1'b0;
    *uo_out[4] = $tx_active;
    *uo_out[5] = $tx_done;
+   *uo_out[6] = 1'b0;
+   *uo_out[7] = 1'b0;
    
 
    // ============================================
@@ -251,7 +256,7 @@ module m5_user_module_name (
    // Note that my_design will be under /fpga_pins/fpga.
    // Example *uo_out = /fpga_pins/fpga|my_pipe>>3$uo_out;
    //assign *uo_out = 8'b0;
-   //assign *uio_out = 8'b0;
-   //assign *uio_oe = 8'b0;
+   assign *uio_out = 8'b0;
+   assign *uio_oe = 8'b0;
 
 endmodule
