@@ -153,7 +153,7 @@
    
    $tx_dv = *ui_in[7];
    $tx_byte[7:0] = {2'b0, *ui_in[5:0]};
-   $cts = *ui_in[6];
+   $cts = !*ui_in[6];
    
    \SV_plus
       uart_tx_hs #(20000000,115200) uart_tx_hs( .clk(*clk), 
@@ -171,7 +171,7 @@
    *uo_out[1] = $tx_done;
    *uo_out[2] = 1'b0;
    *uo_out[3] = 1'b0;
-   *uo_out[4] = $rts;
+   *uo_out[4] = !$rts;
    *uo_out[5] = 1'b0;
    *uo_out[6] = $tx_serial;
    *uo_out[7] = 1'b0;
