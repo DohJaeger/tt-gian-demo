@@ -36,16 +36,131 @@
 \SV
    // Include Tiny Tapeout Lab.
    m4_include_lib(['https:/']['/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/5744600215af09224b7235479be84c30c6e50cb7/tlv_lib/tiny_tapeout_lib.tlv'])
+
+//Taken reference from https://nandland.com/uart-serial-port-module/
+// UART Receiver
+module uart_rx 
+    #(parameter int FREQUENCY = 20_000_000, parameter int BAUD_RATE = 9600)
+    (
+        input logic clk,
+        input logic rx_serial,          // input serial data
+        input logic reset,
+        output logic rx_done,           // asserts when reception is done
+        output logic [7:0] rx_byte      // received byte
+    );
+
+    localparam int CLKS_PER_BIT = FREQUENCY / BAUD_RATE;
+
+    typedef enum logic [2:0] {
+        s_IDLE          = 3'b000,
+        s_RX_START_BIT  = 3'b001,
+        s_RX_DATA_BITS  = 3'b010,
+        s_RX_STOP_BIT   = 3'b011,
+        s_CLEANUP       = 3'b100
+    } state_t;
+
+    state_t r_SM_Main = s_IDLE;
+
+    logic r_Rx_Data_R = 1'b1;
+    logic r_Rx_Data = 1'b1;
+
+    int unsigned r_Clock_Count = 0;
+    int unsigned r_Bit_Index = 0; // 8 bits total
+    logic [7:0] r_Rx_Byte = 8'h00;
+    logic r_Rx_DV = 1'b0;
+
+    // Purpose: Double-register the incoming data to avoid metastability
+    always_ff @(posedge clk) begin
+        r_Rx_Data_R <= rx_serial;
+        r_Rx_Data   <= r_Rx_Data_R;
+    end
+
+    // RX state machine
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            r_SM_Main      <= s_IDLE;
+            r_Rx_DV        <= 1'b0;
+            r_Clock_Count  <= 0;
+            r_Bit_Index    <= 0;
+            r_Rx_Byte      <= 8'h00;
+        end 
+        
+        else begin
+            case (r_SM_Main)
+                s_IDLE: begin
+                    r_Rx_DV       <= 1'b0;
+                    r_Clock_Count <= 0;
+                    r_Bit_Index   <= 0;
+
+                    if (r_Rx_Data == 1'b0) // Start bit detected
+                        r_SM_Main <= s_RX_START_BIT;
+                end
+
+                s_RX_START_BIT: begin
+                    if (r_Clock_Count == (CLKS_PER_BIT - 1) / 2) begin
+                        if (r_Rx_Data == 1'b0) begin
+                            r_Clock_Count <= 0;  // Reset counter, found the middle
+                            r_SM_Main     <= s_RX_DATA_BITS;
+                        end else begin
+                            r_SM_Main <= s_IDLE;
+                        end
+                    end else begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end
+                end
+
+                s_RX_DATA_BITS: begin
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Clock_Count <= 0;
+                        r_Rx_Byte[r_Bit_Index] <= r_Rx_Data;
+
+                        if (r_Bit_Index < 7) begin
+                            r_Bit_Index <= r_Bit_Index + 1;
+                        end else begin
+                            r_Bit_Index <= 0;
+                            r_SM_Main   <= s_RX_STOP_BIT;
+                        end
+                    end
+                end
+
+                s_RX_STOP_BIT: begin
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Rx_DV       <= 1'b1;
+                        r_Clock_Count <= 0;
+                        r_SM_Main     <= s_CLEANUP;
+                    end
+                end
+
+                s_CLEANUP: begin
+                    r_SM_Main <= s_IDLE;
+                    r_Rx_DV   <= 1'b0;
+                end
+
+                default: r_SM_Main <= s_IDLE;
+            endcase
+        end
+    end
+
+    assign rx_done = r_Rx_DV;
+    assign rx_byte = r_Rx_Byte;
+endmodule
+
+//Taken reference from https://nandland.com/uart-serial-port-module/
+// UART Transmitter
 module uart_tx 
-    #(parameter int FREQUENCY = 10000000, parameter int BAUD_RATE = 9600)
+    #(parameter int FREQUENCY = 20_000_000, parameter int BAUD_RATE = 9600)
     (
         input logic clk,
         input logic reset,
         input logic tx_dv,
-        input logic [7:0] tx_byte, 
-        output logic tx_active,
-        output logic tx_serial,
-        output logic tx_done
+        input logic [7:0] tx_byte,  // byte to be transmitted
+        output logic tx_active,     // asserted during data transmission
+        output logic tx_serial,     // serial data to be transmitted
+        output logic tx_done        // asserts when transmission is done
     );
 
     typedef enum logic [2:0] {
@@ -143,24 +258,43 @@ module uart_tx
 
 endmodule
 
+
 \TLV my_design()
    
-   $tx_dv = *ui_in[7];
-   $tx_byte[7:0] = {1'b0, *ui_in[6:0]};
-   
    \SV_plus
-      uart_tx #(20000000,115200) uart_tx( .clk(*clk), 
-                                         .reset(*reset), 
-                                         .tx_dv($tx_dv), 
-                                         .tx_byte($tx_byte),
-                                         .tx_active($$tx_active),
-                                         .tx_serial($$tx_serial), 
-                                         .tx_done($$tx_done));
-            
-   //$cnt[4:0] = !$tx_done ? $tx_serial + >>1$tx_serial : 8'd0;
-   *uo_out[0] = $tx_active;
-   *uo_out[1] = $tx_done;
-   *uo_out[5] = $tx_serial;
+   uart_rx #(20000000,115200) uart_rx(.clk(*clk),
+                                      .reset(*reset),
+                                      .rx_serial($rx_in),
+                                      .rx_byte($$rx_byte),
+                                      .rx_done($$rx_done)
+                                      );
+
+   uart_tx #(20000000,115200) uart_tx(.clk(*clk), 
+                                      .reset(*reset), 
+                                      .tx_dv($tx_dv), 
+                                      .tx_byte($tx_byte),
+                                      .tx_active($$tx_active),
+                                      .tx_serial($$tx_serial), 
+                                      .tx_done($$tx_done)
+                                      );
+   |rxtx
+      @0
+         $rx_in = *ui_in[3];
+         
+      @1
+         // just to test the functionality of Rx and Tx after some operation,
+         // here add 5 to received data and send the result
+         $tx_byte[7:0] = $rx_done ? $rx_byte + 8'd5 : 8'b0;
+         
+         $tx_dv = $rx_done ? 1'b1 : 1'b0;
+         
+         *uo_out[0] = $tx_active;
+         *uo_out[1] = $tx_done;
+         *uo_out[5] = $tx_serial;
+   
+   
+
+
    
    // Note that pipesignals assigned here can be found under /fpga_pins/fpga.
    
