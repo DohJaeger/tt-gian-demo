@@ -161,8 +161,9 @@ endmodule
    *uo_out[5] = $tx_done;
    *uo_out[6] = 1'b0;
    *uo_out[7] = 1'b0;
-   *uio_out = 8'b0;
-   *uio_oe = 8'b0;
+   
+   *uio_out[7:0] = 8'b0;
+   *uio_oe[7:0] = 8'b0;
    
 
    // ============================================
