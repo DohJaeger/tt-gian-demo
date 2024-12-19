@@ -167,12 +167,12 @@
                                          .tx_done($$tx_done));
             
    //$cnt[4:0] = !$tx_done ? $tx_serial + >>1$tx_serial : 8'd0;
-   *uo_out[0] = $tx_done;
+   *uo_out[0] = 1'b0;
    *uo_out[1] = $tx_active;
    *uo_out[2] = 1'b0;
    *uo_out[3] = 1'b0;
    *uo_out[4] = $rts;
-   *uo_out[5] = 1'b0;
+   *uo_out[5] = $tx_done;
    *uo_out[6] = $tx_serial;
    *uo_out[7] = 1'b0;
    
