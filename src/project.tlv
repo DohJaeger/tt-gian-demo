@@ -157,7 +157,7 @@ endmodule
                                          .tx_serial($$tx_serial), 
                                          .tx_done($$tx_done));
             
-   $cnt[4:0] = !$tx_done ? $tx_serial + >>1$tx_serial : 8'd0;
+   //$cnt[4:0] = !$tx_done ? $tx_serial + >>1$tx_serial : 8'd0;
    *uo_out[0] = 1'b0;
    *uo_out[1] = 1'b0;
    *uo_out[2] = $tx_serial;
