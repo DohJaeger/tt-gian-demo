@@ -152,7 +152,8 @@ endmodule
                                          .tx_active($$tx_active), 
                                          .tx_serial($$tx_serial), 
                                          .tx_done($$tx_done));
-                                         
+   
+   /*
    *uo_out[0] = 1'b0;
    *uo_out[1] = 1'b0;
    *uo_out[2] = $tx_serial;
@@ -164,6 +165,7 @@ endmodule
    
    *uio_out[7:0] = 8'b0;
    *uio_oe[7:0] = 8'b0;
+   */
    
 
    // ============================================
@@ -261,5 +263,16 @@ module m5_user_module_name (
    //assign *uo_out = 8'b0;
    //assign *uio_out = 8'b0;
    //assign *uio_oe = 8'b0;
+   assign uo_out[0] = 1'b0;
+   assign uo_out[1] = 1'b0;
+   assign uo_out[2] = $tx_serial;
+   assign uo_out[3] = 1'b0;
+   assign uo_out[4] = $tx_active;
+   assign uo_out[5] = $tx_done;
+   assign uo_out[6] = 1'b0;
+   assign uo_out[7] = 1'b0;
+   
+   assign uio_out[7:0] = 8'b0;
+   assign uio_oe[7:0] = 8'b0;
 
 endmodule
