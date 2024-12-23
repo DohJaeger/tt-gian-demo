@@ -270,6 +270,7 @@ endmodule
          
          //$tx_byte[7:0] = {*ui_in[7:0]};
          $received = $rx_done;
+         *uo_out[7] = $received;
          $received_byte[7:0] = $rx_byte[7:0];
 
          // display on the seven 
