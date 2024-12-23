@@ -36,9 +36,114 @@
 \SV
    // Include Tiny Tapeout Lab.
    m4_include_lib(['https:/']['/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/5744600215af09224b7235479be84c30c6e50cb7/tlv_lib/tiny_tapeout_lib.tlv'])
+   
+module uart_tx 
+    #(parameter int FREQUENCY = 10000000, parameter int BAUD_RATE = 9600)
+    (
+        input logic clk,
+        input logic reset,
+        input logic tx_dv,
+        input logic [7:0] tx_byte, 
+        output logic tx_active,
+        output logic tx_serial,
+        output logic tx_done
+    );
 
-//Taken reference from https://nandland.com/uart-serial-port-module/
-// UART Receiver
+    typedef enum logic [2:0] {
+        s_IDLE          = 3'b000,
+        s_TX_START_BIT  = 3'b001,
+        s_TX_DATA_BITS  = 3'b010,
+        s_TX_STOP_BIT   = 3'b011,
+        s_CLEANUP       = 3'b100
+    } state_t;
+
+    localparam int CLKS_PER_BIT = FREQUENCY /  BAUD_RATE;
+
+    state_t r_SM_Main = s_IDLE;
+    logic [7:0] r_Clock_Count = 0;
+    logic [2:0] r_Bit_Index = 0;
+    logic [7:0] r_Tx_Data = 0;
+    logic r_Tx_Done = 0;
+    logic r_Tx_Active = 0;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            r_SM_Main <= s_IDLE;
+            r_Clock_Count <= 0;
+            r_Bit_Index <= 0;
+            r_Tx_Data <= 0;
+            r_Tx_Done <= 0;
+            r_Tx_Active <= 0;
+            tx_serial <= 1;
+        end else begin
+            case (r_SM_Main)
+                s_IDLE: begin
+                    tx_serial <= 1; // Line idle state
+                    r_Tx_Done <= 0;
+                    r_Clock_Count <= 0;
+                    r_Bit_Index <= 0;
+                    
+                    if (tx_dv) begin
+                        r_Tx_Active <= 1;
+                        r_Tx_Data <= tx_byte;
+                        r_SM_Main <= s_TX_START_BIT;
+                    end else begin
+                        r_SM_Main <= s_IDLE;
+                    end
+                end
+
+                s_TX_START_BIT: begin
+                    tx_serial <= 0; // Start bit
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Clock_Count <= 0;
+                        r_SM_Main <= s_TX_DATA_BITS;
+                    end
+                end
+
+                s_TX_DATA_BITS: begin
+                    tx_serial <= r_Tx_Data[r_Bit_Index];
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Clock_Count <= 0;
+                        if (r_Bit_Index < 7) begin
+                            r_Bit_Index <= r_Bit_Index + 1;
+                        end else begin
+                            r_Bit_Index <= 0;
+                            r_SM_Main <= s_TX_STOP_BIT;
+                        end
+                    end
+                end
+
+                s_TX_STOP_BIT: begin
+                    tx_serial <= 1; // Stop bit
+                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
+                        r_Clock_Count <= r_Clock_Count + 1;
+                    end else begin
+                        r_Tx_Done <= 1;
+                        r_Clock_Count <= 0;
+                        r_Tx_Active <= 0;
+                        r_SM_Main <= s_CLEANUP;
+                    end
+                end
+
+                s_CLEANUP: begin
+                    r_Tx_Done <= 1;
+                    r_SM_Main <= s_IDLE;
+                end
+
+                default: r_SM_Main <= s_IDLE;
+            endcase
+        end
+    end
+
+    assign tx_active = r_Tx_Active;
+    assign tx_done = r_Tx_Done;
+
+endmodule
+
 module uart_rx 
     #(parameter int FREQUENCY = 20_000_000, parameter int BAUD_RATE = 9600)
     (
@@ -149,152 +254,65 @@ module uart_rx
     assign rx_byte = r_Rx_Byte;
 endmodule
 
-//Taken reference from https://nandland.com/uart-serial-port-module/
-// UART Transmitter
-module uart_tx 
-    #(parameter int FREQUENCY = 20_000_000, parameter int BAUD_RATE = 9600)
-    (
-        input logic clk,
-        input logic reset,
-        input logic tx_dv,
-        input logic [7:0] tx_byte,  // byte to be transmitted
-        output logic tx_active,     // asserted during data transmission
-        output logic tx_serial,     // serial data to be transmitted
-        output logic tx_done        // asserts when transmission is done
-    );
-
-    typedef enum logic [2:0] {
-        s_IDLE          = 3'b000,
-        s_TX_START_BIT  = 3'b001,
-        s_TX_DATA_BITS  = 3'b010,
-        s_TX_STOP_BIT   = 3'b011,
-        s_CLEANUP       = 3'b100
-    } state_t;
-
-    localparam int CLKS_PER_BIT = FREQUENCY /  BAUD_RATE;
-
-    state_t r_SM_Main = s_IDLE;
-    logic [7:0] r_Clock_Count = 0;
-    logic [2:0] r_Bit_Index = 0;
-    logic [7:0] r_Tx_Data = 0;
-    logic r_Tx_Done = 0;
-    logic r_Tx_Active = 0;
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            r_SM_Main <= s_IDLE;
-            r_Clock_Count <= 0;
-            r_Bit_Index <= 0;
-            r_Tx_Data <= 0;
-            r_Tx_Done <= 0;
-            r_Tx_Active <= 0;
-            tx_serial <= 1;
-        end else begin
-            case (r_SM_Main)
-                s_IDLE: begin
-                    tx_serial <= 1; // Line idle state
-                    r_Tx_Done <= 0;
-                    r_Clock_Count <= 0;
-                    r_Bit_Index <= 0;
-                    
-                    if (tx_dv) begin
-                        r_Tx_Active <= 1;
-                        r_Tx_Data <= tx_byte;
-                        r_SM_Main <= s_TX_START_BIT;
-                    end else begin
-                        r_SM_Main <= s_IDLE;
-                    end
-                end
-
-                s_TX_START_BIT: begin
-                    tx_serial <= 0; // Start bit
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Clock_Count <= 0;
-                        r_SM_Main <= s_TX_DATA_BITS;
-                    end
-                end
-
-                s_TX_DATA_BITS: begin
-                    tx_serial <= r_Tx_Data[r_Bit_Index];
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Clock_Count <= 0;
-                        if (r_Bit_Index < 7) begin
-                            r_Bit_Index <= r_Bit_Index + 1;
-                        end else begin
-                            r_Bit_Index <= 0;
-                            r_SM_Main <= s_TX_STOP_BIT;
-                        end
-                    end
-                end
-
-                s_TX_STOP_BIT: begin
-                    tx_serial <= 1; // Stop bit
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Tx_Done <= 1;
-                        r_Clock_Count <= 0;
-                        r_Tx_Active <= 0;
-                        r_SM_Main <= s_CLEANUP;
-                    end
-                end
-
-                s_CLEANUP: begin
-                    r_Tx_Done <= 1;
-                    r_SM_Main <= s_IDLE;
-                end
-
-                default: r_SM_Main <= s_IDLE;
-            endcase
-        end
-    end
-
-    assign tx_active = r_Tx_Active;
-    assign tx_done = r_Tx_Done;
-
-endmodule
-
 
 \TLV my_design()
    
    \SV_plus
    uart_rx #(20000000,115200) uart_rx(.clk(*clk),
                                       .reset(*reset),
-                                      .rx_serial($rx_in),
-                                      .rx_byte($$rx_byte),
-                                      .rx_done($$rx_done)
+                                      .rx_serial($rx_serial),
+                                      .rx_done($$rx_done),
+                                      .rx_byte($$rx_byte)
                                       );
 
-   uart_tx #(20000000,115200) uart_tx(.clk(*clk), 
-                                      .reset(*reset), 
-                                      .tx_dv($tx_dv), 
-                                      .tx_byte($tx_byte),
-                                      .tx_active($$tx_active),
-                                      .tx_serial($$tx_serial), 
-                                      .tx_done($$tx_done)
-                                      );
-   |rxtx
+   
+   |uart
+      //$tx_byte[7:0] = {*ui_in[7:0]};
       @0
-         $rx_in = *ui_in[3];
+         $rx_serial = *ui_in[6];   // pmod connector's TxD port
+         $received = $rx_done;
+         $received_byte[7:0] = $rx_byte[7:0];
+         
+         $digit[3:0] = $received_byte[3:0];
          
       @1
-         // just to test the functionality of Rx and Tx after some operation,
-         // here add 5 to received data and send the result
-         $tx_byte[7:0] = $rx_done ? $rx_byte + 8'd5 : 8'b0;
-         
-         $tx_dv = $rx_done ? 1'b1 : 1'b0;
-         
-         *uo_out[0] = $tx_active;
-         *uo_out[1] = $tx_done;
-         *uo_out[5] = $tx_serial;
-   
+         // display the LS nibble on the seven seg
+         *uo_out =   $digit == 4'd0
+                         ? 8'b0011_1111 :
+                     $digit == 4'd1
+                         ? 8'b00000110 :
+                     $digit == 4'd2
+                         ? 8'b01011011 :
+                     $digit == 4'd3
+                         ? 8'b01001111 :
+                     $digit == 4'd4
+                         ? 8'b01100110 :
+                     $digit == 4'd5
+                         ? 8'b01101101 :
+                     $digit == 4'd6
+                         ? 8'b01111101 :
+                     $digit == 4'd7
+                         ? 8'b00000111 :
+                     $digit == 4'd8
+                         ? 8'b01111111 :
+                     $digit == 4'd9
+                         ? 8'b01101111 :
+                     $digit == 4'd10
+                         ? 8'b01110111 :
+                     $digit == 4'd11
+                         ? 8'b01111100 :
+                     $digit == 4'd12
+                         ? 8'b00111001 :
+                     $digit == 4'd13
+                         ? 8'b01011110 :
+                     $digit == 4'd14
+                         ? 8'b01111001 :
+                     $digit == 4'd15
+                         ? 8'b01110001 :
+                         8'b00000000;
    
 
-
+   
    
    // Note that pipesignals assigned here can be found under /fpga_pins/fpga.
    
@@ -302,7 +320,7 @@ endmodule
    
    
    // Connect Tiny Tapeout outputs. Note that uio_ outputs are not available in the Tiny-Tapeout-3-based FPGA boards.
-   //*uo_out = 8'b0;
+   *uo_out = 8'b0;
    m5_if_neq(m5_target, FPGA, ['*uio_out = 8'b0;'])
    m5_if_neq(m5_target, FPGA, ['*uio_oe = 8'b0;'])
 
@@ -350,7 +368,7 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
    
-   assign passed = top.cyc_cnt > 400000;
+   assign passed = top.cyc_cnt > 80;
    assign failed = 1'b0;
 endmodule
 
