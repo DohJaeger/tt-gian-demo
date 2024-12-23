@@ -257,26 +257,24 @@ endmodule
 
 \TLV my_design()
    
-   \SV_plus
-   uart_rx #(20000000,115200) uart_rx(.clk(*clk),
-                                      .reset(*reset),
-                                      .rx_serial($rx_serial),
-                                      .rx_done($$rx_done),
-                                      .rx_byte($$rx_byte)
-                                      );
-
-   
    |uart
-      //$tx_byte[7:0] = {*ui_in[7:0]};
       @0
          $rx_serial = *ui_in[6];   // pmod connector's TxD port
+         \SV_plus
+            uart_rx #(20000000,115200) uart_rx_1(.clk(*clk),
+                                            .reset(*reset),
+                                            .rx_serial($rx_serial),
+                                            .rx_done($$rx_done),
+                                            .rx_byte($$rx_byte[7:0])
+                                            );
+         
+         //$tx_byte[7:0] = {*ui_in[7:0]};
          $received = $rx_done;
          $received_byte[7:0] = $rx_byte[7:0];
-         
-         $digit[3:0] = $received_byte[3:0];
-         
-      @1
-         // display the LS nibble on the seven seg
+
+         // display on the seven 
+         $digit[3:0] = $received_byte[3:0];   // display the LS nibble on the seven seg
+
          *uo_out =   $digit == 4'd0
                          ? 8'b0011_1111 :
                      $digit == 4'd1
@@ -320,7 +318,7 @@ endmodule
    
    
    // Connect Tiny Tapeout outputs. Note that uio_ outputs are not available in the Tiny-Tapeout-3-based FPGA boards.
-   *uo_out = 8'b0;
+   //*uo_out = 8'b0;
    m5_if_neq(m5_target, FPGA, ['*uio_out = 8'b0;'])
    m5_if_neq(m5_target, FPGA, ['*uio_oe = 8'b0;'])
 
@@ -405,7 +403,6 @@ module m5_user_module_name (
    m5_if(m5_in_fpga, ['m5+tt_lab()'], ['m5+my_design()'])
 
 \SV_plus
-   
    // ==========================================
    // If you are using Verilog for your design,
    // your Verilog logic goes here.
@@ -413,4 +410,5 @@ module m5_user_module_name (
    // ==========================================
 
 \SV
+
 endmodule
