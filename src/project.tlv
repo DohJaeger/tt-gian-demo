@@ -32,263 +32,96 @@
    // If debouncing, a user's module is within a wrapper, so it has a different name.
    var(user_module_name, m5_if(m5_debounce_inputs, my_design, m5_my_design))
    var(debounce_cnt, m5_if_defined_as(MAKERCHIP, 1, 8'h03, 8'hff))
-
+   // No TT lab outside of Makerchip.
+   if_defined_as(MAKERCHIP, 1, [''], ['m5_set(in_fpga, 0)'])
 \SV
    // Include Tiny Tapeout Lab.
    m4_include_lib(['https:/']['/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/5744600215af09224b7235479be84c30c6e50cb7/tlv_lib/tiny_tapeout_lib.tlv'])
-   
-module uart_tx 
-    #(parameter int FREQUENCY = 10000000, parameter int BAUD_RATE = 9600)
-    (
-        input logic clk,
-        input logic reset,
-        input logic tx_dv,
-        input logic [7:0] tx_byte, 
-        output logic tx_active,
-        output logic tx_serial,
-        output logic tx_done
-    );
-
-    typedef enum logic [2:0] {
-        s_IDLE          = 3'b000,
-        s_TX_START_BIT  = 3'b001,
-        s_TX_DATA_BITS  = 3'b010,
-        s_TX_STOP_BIT   = 3'b011,
-        s_CLEANUP       = 3'b100
-    } state_t;
-
-    localparam int CLKS_PER_BIT = FREQUENCY /  BAUD_RATE;
-
-    state_t r_SM_Main = s_IDLE;
-    logic [7:0] r_Clock_Count = 0;
-    logic [2:0] r_Bit_Index = 0;
-    logic [7:0] r_Tx_Data = 0;
-    logic r_Tx_Done = 0;
-    logic r_Tx_Active = 0;
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            r_SM_Main <= s_IDLE;
-            r_Clock_Count <= 0;
-            r_Bit_Index <= 0;
-            r_Tx_Data <= 0;
-            r_Tx_Done <= 0;
-            r_Tx_Active <= 0;
-            tx_serial <= 1;
-        end else begin
-            case (r_SM_Main)
-                s_IDLE: begin
-                    tx_serial <= 1; // Line idle state
-                    r_Tx_Done <= 0;
-                    r_Clock_Count <= 0;
-                    r_Bit_Index <= 0;
-                    
-                    if (tx_dv) begin
-                        r_Tx_Active <= 1;
-                        r_Tx_Data <= tx_byte;
-                        r_SM_Main <= s_TX_START_BIT;
-                    end else begin
-                        r_SM_Main <= s_IDLE;
-                    end
-                end
-
-                s_TX_START_BIT: begin
-                    tx_serial <= 0; // Start bit
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Clock_Count <= 0;
-                        r_SM_Main <= s_TX_DATA_BITS;
-                    end
-                end
-
-                s_TX_DATA_BITS: begin
-                    tx_serial <= r_Tx_Data[r_Bit_Index];
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Clock_Count <= 0;
-                        if (r_Bit_Index < 7) begin
-                            r_Bit_Index <= r_Bit_Index + 1;
-                        end else begin
-                            r_Bit_Index <= 0;
-                            r_SM_Main <= s_TX_STOP_BIT;
-                        end
-                    end
-                end
-
-                s_TX_STOP_BIT: begin
-                    tx_serial <= 1; // Stop bit
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Tx_Done <= 1;
-                        r_Clock_Count <= 0;
-                        r_Tx_Active <= 0;
-                        r_SM_Main <= s_CLEANUP;
-                    end
-                end
-
-                s_CLEANUP: begin
-                    r_Tx_Done <= 1;
-                    r_SM_Main <= s_IDLE;
-                end
-
-                default: r_SM_Main <= s_IDLE;
-            endcase
-        end
-    end
-
-    assign tx_active = r_Tx_Active;
-    assign tx_done = r_Tx_Done;
-
-endmodule
-
-module uart_rx 
-    #(parameter int FREQUENCY = 20_000_000, parameter int BAUD_RATE = 9600)
-    (
-        input logic clk,
-        input logic rx_serial,          // input serial data
-        input logic reset,
-        output logic rx_done,           // asserts when reception is done
-        output logic [7:0] rx_byte      // received byte
-    );
-
-    localparam int CLKS_PER_BIT = FREQUENCY / BAUD_RATE;
-
-    typedef enum logic [2:0] {
-        s_IDLE          = 3'b000,
-        s_RX_START_BIT  = 3'b001,
-        s_RX_DATA_BITS  = 3'b010,
-        s_RX_STOP_BIT   = 3'b011,
-        s_CLEANUP       = 3'b100
-    } state_t;
-
-    state_t r_SM_Main = s_IDLE;
-
-    logic r_Rx_Data_R = 1'b1;
-    logic r_Rx_Data = 1'b1;
-
-    int unsigned r_Clock_Count = 0;
-    int unsigned r_Bit_Index = 0; // 8 bits total
-    logic [7:0] r_Rx_Byte = 8'h00;
-    logic r_Rx_DV = 1'b0;
-
-    // Purpose: Double-register the incoming data to avoid metastability
-    always_ff @(posedge clk) begin
-        r_Rx_Data_R <= rx_serial;
-        r_Rx_Data   <= r_Rx_Data_R;
-    end
-
-    // RX state machine
-    always_ff @(posedge clk) begin
-        if (reset) begin
-            r_SM_Main      <= s_IDLE;
-            r_Rx_DV        <= 1'b0;
-            r_Clock_Count  <= 0;
-            r_Bit_Index    <= 0;
-            r_Rx_Byte      <= 8'h00;
-        end 
-        
-        else begin
-            case (r_SM_Main)
-                s_IDLE: begin
-                    r_Rx_DV       <= 1'b0;
-                    r_Clock_Count <= 0;
-                    r_Bit_Index   <= 0;
-
-                    if (r_Rx_Data == 1'b0) // Start bit detected
-                        r_SM_Main <= s_RX_START_BIT;
-                end
-
-                s_RX_START_BIT: begin
-                    if (r_Clock_Count == (CLKS_PER_BIT - 1) / 2) begin
-                        if (r_Rx_Data == 1'b0) begin
-                            r_Clock_Count <= 0;  // Reset counter, found the middle
-                            r_SM_Main     <= s_RX_DATA_BITS;
-                        end else begin
-                            r_SM_Main <= s_IDLE;
-                        end
-                    end else begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end
-                end
-
-                s_RX_DATA_BITS: begin
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Clock_Count <= 0;
-                        r_Rx_Byte[r_Bit_Index] <= r_Rx_Data;
-
-                        if (r_Bit_Index < 7) begin
-                            r_Bit_Index <= r_Bit_Index + 1;
-                        end else begin
-                            r_Bit_Index <= 0;
-                            r_SM_Main   <= s_RX_STOP_BIT;
-                        end
-                    end
-                end
-
-                s_RX_STOP_BIT: begin
-                    if (r_Clock_Count < CLKS_PER_BIT - 1) begin
-                        r_Clock_Count <= r_Clock_Count + 1;
-                    end else begin
-                        r_Rx_DV       <= 1'b1;
-                        r_Clock_Count <= 0;
-                        r_SM_Main     <= s_CLEANUP;
-                    end
-                end
-
-                s_CLEANUP: begin
-                    r_SM_Main <= s_IDLE;
-                    r_Rx_DV   <= 1'b0;
-                end
-
-                default: r_SM_Main <= s_IDLE;
-            endcase
-        end
-    end
-
-    assign rx_done = r_Rx_DV;
-    assign rx_byte = r_Rx_Byte;
-endmodule
 
 
 \TLV my_design()
-
-   // following pipe is just an use case of how UART receiver and transmitter controller can be used
+   
    |uart
       @0
+         /*
+         // IDLE -> 2'd0
+         // S1 -> 2'd1
+         // S2 -> 2'd2
+         
          \SV_plus
-            uart_rx #(20000000,115200) uart_rx(.clk(*clk),
-                                               .reset(*reset),
-                                               .rx_serial($rx_serial),
-                                               .rx_done($$rx_done),
-                                               .rx_byte($$rx_byte[7:0])
-                                               );
-         $rx_serial = *ui_in[6];   // pmod connector's TxD port
-         $received = $rx_done;
-         $received_byte[7:0] = $rx_byte[7:0];
-
-      @1
-         $tx_dv = $received;
-         $tx_byte[7:0] = $received_byte + 8'd1;   // add 1 to the received byte and send the data
+            localparam IDLE    = 2'b00;
+            localparam STATE_1 = 2'b01;
+            localparam STATE_2 = 2'b10;
+         
+         $reset = *reset;
+         $cur_state[1:0] = $reset ? 2'd0 :
+                      >>1$next_state;
+         
+         $input_signal = *ui_in[0];
+         $next_state[1:0] = ($cur_state == *IDLE && $input_signal) ? *STATE_1 :
+                      ($cur_state == *STATE_1 && !$input_signal) ? *STATE_2 :
+                      ($cur_state == *STATE_1) ? *IDLE :
+                      *IDLE;
+         */
+         
+         $tx_dv = *ui_in[7];
+         $tx_byte[7:0] = {1'b0, *ui_in[6:0]};
+         //$tx_dv = 1'b1;
+         //$tx_byte[7:0] = 8'd85;
+         
          \SV_plus
-            uart_tx #(20000000,115200) uart_tx( .clk(*clk),
-                                   .reset(*reset),
-                                   .tx_dv($tx_dv),
-                                   .tx_byte($tx_byte[7:0]),
-                                   .tx_active($$tx_active),
-                                   .tx_serial($$tx_serial),
-                                   .tx_done($$tx_done));
+            localparam IDLE = 3'd0;
+            localparam TX_START_BIT = 3'd1;
+            localparam TX_DATA_BITS = 3'd2;
+            localparam TX_STOP_BIT = 3'd3;
+            localparam CLEANUP = 3'd4;
+            localparam FREQUENCY = 20_000_000;
+         
+            localparam BAUD_RATE = 115200;
+            localparam CLKS_PER_BIT = 173;
+         
+         $reset = *reset;
+         $cur_state[2:0] = $reset ? *IDLE :
+                           >>1$next_state;
+         
+         $next_state[2:0] = *reset ? *IDLE :
+                            ($cur_state == *IDLE && $tx_dv) ? *TX_START_BIT :
+                            (($cur_state == *TX_START_BIT) && ($clk_cnt[7:0] == *CLKS_PER_BIT - 1'b1)) ? *TX_DATA_BITS :
+                            (($cur_state == *TX_DATA_BITS) && ($clk_cnt[7:0] == *CLKS_PER_BIT - 1'b1) && ($bit_index[2:0] == 3'd7)) ? *TX_STOP_BIT :
+                            (($cur_state == *TX_DATA_BITS) && ($clk_cnt[7:0] == *CLKS_PER_BIT - 1)) ? *TX_DATA_BITS :
+                            (($cur_state == *TX_STOP_BIT) && ($clk_cnt[7:0] == *CLKS_PER_BIT - 1)) ? *CLEANUP :
+                            ($cur_state == *CLEANUP) ? *IDLE :
+                            $cur_state;
+         
+         $clk_cnt[7:0] = *reset ? 0 :
+                         (($cur_state == *IDLE) || (>>1$clk_cnt == *CLKS_PER_BIT - 1)) ? 0 :
+                         (>>1$clk_cnt + 1);
+         
+         $bit_index[2:0] = *reset ? 0 :
+                           (($cur_state == *TX_DATA_BITS) && ($clk_cnt == *CLKS_PER_BIT - 1) && (>>1$bit_index < 7)) ? (>>1$bit_index + 1) :
+                           >>1$bit_index;
+         
+         $tx_data[7:0] = *reset ? 0 :
+                         ($cur_state == *IDLE && $tx_dv) ? $tx_byte[7:0] :
+                         >>1$tx_data;
+         
+         $tx_serial = *reset ? 1 :
+                      ($cur_state == *TX_START_BIT) ? 0 :              // Start bit
+                      ($cur_state == *TX_DATA_BITS) ? $tx_data[$bit_index] : // Data bits
+                      ($cur_state == *TX_STOP_BIT) ? 1 :              // Stop bit
+                      1;
+         
+         $tx_done = *reset ? 0 :
+                    ($cur_state == *CLEANUP) ? 1 :
+                    0;
+         
+         $tx_active = *reset ? 0 :
+                      ($cur_state == *TX_START_BIT || $cur_state == *TX_DATA_BITS || $cur_state == *TX_STOP_BIT) ? 1 : 
+                      0;
          
          *uo_out[0] = $tx_active;
          *uo_out[1] = $tx_done;
-         *uo_out[5] = $tx_serial;   // pmod connector's RxD port
-   
-
-   
+         *uo_out[5] = $tx_serial;
    
    // Note that pipesignals assigned here can be found under /fpga_pins/fpga.
    
@@ -342,9 +175,9 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    */
 
    // Instantiate the Tiny Tapeout module.
-   m5_user_module_name tt(.*);
+   m5_my_design tt(.*);
    
-   assign passed = top.cyc_cnt > 80;
+   assign passed = top.cyc_cnt > 800;
    assign failed = 1'b0;
 endmodule
 
@@ -374,7 +207,7 @@ module m5_user_module_name (
    wire reset = ! rst_n;
 
    // List all potentially-unused inputs to prevent warnings
-   wire _unused = &{ena, clk, rst_n, 1'b0};
+   (* keep *) wire _unused = &{ena, clk, reset, ui_in, uio_in, 1'b1};
 
 \TLV
    /* verilator lint_off UNOPTFLAT */
