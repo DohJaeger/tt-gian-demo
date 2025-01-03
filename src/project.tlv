@@ -78,7 +78,7 @@
             localparam FREQUENCY = 20_000_000;
          
             localparam BAUD_RATE = 115200;
-            localparam CLKS_PER_BIT = 173;
+            localparam CLKS_PER_BIT = 174;
          
          $reset = *reset;
          $cur_state[2:0] = $reset ? *IDLE :
